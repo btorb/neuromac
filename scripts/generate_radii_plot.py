@@ -11,6 +11,8 @@ from ConfigParser import SafeConfigParser # For use with Python 2.7
 
 timer = time.time
 
+my_color_list = ['r','g','b','c','m','y','k','y','brown']
+
 def plot_with_radii() :    
     cfg_file = sys.argv[1]
     db_name = sys.argv[2]
@@ -74,7 +76,8 @@ def plot_with_radii() :
                      [entity[4],entity[7]],\
                      [entity[5],entity[8]],\
                      linewidth=radius,\
-                     color=c_mapping[name] )
+                     color=my_color_list[entity[2]-1]) # thisline for color per SWC type
+                     #color=c_mapping[name] ) # this line for 1 color per cell name
             t1 =timer()
             times.append(t1-t0)
     t0 = timer()
