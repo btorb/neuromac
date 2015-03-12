@@ -522,7 +522,7 @@ class Admin_Agent(object) :
             if time_stamp==None:
                 file_n = "tree_{0}.swc".format(key)
             else:
-                file_n = "tree_{0}_T{1}.swc".format(key,time_stamp)
+                file_n = "tree_{0}_T{1:06d}.swc".format(key,time_stamp)
             tree.write_SWC_tree_to_file(file_n)
 
     def _temp_to_db(self,changes,sender):#front,c_fronts) :
