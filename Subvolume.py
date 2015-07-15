@@ -10,6 +10,9 @@ import numpy as np
 from front import Front
 from segment_distance import dist3D_segment_to_segment
 
+import warnings
+warnings.filterwarnings('error','RuntimeWarning')
+
 #from memory_profiler import profile
 
 import inspect
@@ -44,6 +47,7 @@ class Subvolume_Agent(object) :
         
         self.virtual_constellation={}
         self.neighbor_constellation={}
+        self.neighbor_substances_constellation={}
         self.distal_constellation={}
         self.dynamic_constellation={}
         
@@ -162,7 +166,8 @@ class Subvolume_Agent(object) :
         # clear the distal_constellation & neighbor_constellation from the previous update cycle
         self.distal_constellation = {}
         self.neighbor_constellation = {}
-
+        self.neighbor_substances_constellation={}
+        
         try:
             total_l = sum([len(v) for k,v in all_summarized_constellations[1].iteritems()])
             no_keys = len(all_summarized_constellations[1].keys())
@@ -218,16 +223,19 @@ class Subvolume_Agent(object) :
         but because of the "in the eye of the beholder" interaction principle, it is up to the
         developing front to decide what is "near" and what is "distal"
         """
-        ret_message = ("Reply_constellation",self.dynamic_constellation)
+        # 2015-06-24: also send the substances_constellation
+        ret_message = ("Reply_constellation",(self.dynamic_constellation,self.substances_constellation))
         self.ppub.send_multipart(["%06d"%ret_dest,pickle.dumps(ret_message)])
 
     def _process_reply_constellation(self,message):
         # merge received constellation in an expanded one
-        temp_con = message[1]
+        temp_con,temp_substances = message[1]
 
         # 2014-08-06       
         self.neighbor_constellation = self._merge_constellations(self.neighbor_constellation,temp_con)
-        #print "received temp_con: ", temp_con
+        # 2015-06-24
+        self.neighbor_substances_constellation = \
+          self._merge_constellations(self.neighbor_substances_constellation,temp_substances)
 
         self._constellation_responses = self._constellation_responses +1
 
@@ -306,6 +314,7 @@ class Subvolume_Agent(object) :
         merged_constellation = self._merge_constellations(merged_constellation,self.neighbor_constellation)
         merged_constellation = self._merge_constellations(merged_constellation,self.distal_constellation)
         merged_constellation = self._merge_constellations(merged_constellation,self.substances_constellation)
+        merged_constellation = self._merge_constellations(merged_constellation,self.neighbor_substances_constellation)
         self.merged_constellation = merged_constellation
         
         pos_only_constellation = self._get_pos_only_constellation(merged_constellation)
@@ -363,8 +372,8 @@ class Subvolume_Agent(object) :
                 # store and...
                 # ... update the current pos_only_constellation
                 if entity_name in self.substances_constellation :
-                    self.substances_constellation[entity_name].append(entity_front)
-                    pos_only_constellation[entity_name].add(entity_front.xyz)
+                    self.substances_constellation[entity_name].add(entity_front)
+                    pos_only_constellation[entity_name].append(entity_front.xyz)
                 else :
                     self.substances_constellation[entity_name] = set()
                     self.substances_constellation[entity_name].add(entity_front)
@@ -479,7 +488,7 @@ class Subvolume_Agent(object) :
             # wiggle front.xyz a bit...
             noise = (2*f.radius)*np.random.random(len(f.xyz))-f.radius
             f.xyz = f.xyz+ noise
-            valid,syn_locs = self._is_front_valid(f,check_synapses=self.parser.has_option("system","syn_db"))
+            valid,syn_locs = self._is_front_valid(f,merged_constellation,check_synapses=self.parser.has_option("system","syn_db"))
             attempts = attempts + 1
         return valid,syn_locs
 
@@ -555,7 +564,7 @@ class Subvolume_Agent(object) :
 
                     if check_synapses:
                         if D < (front.radius + o_front.radius) :
-                            print "radii too close"
+                            print_with_rank(self.num,"{0}radii too close".format(front))
                             ret = False
                         elif D < (front.radius + o_front.radius + self.parser.getfloat("system","synapse_distance")):
                             #print "synapse!!!"
@@ -569,7 +578,7 @@ class Subvolume_Agent(object) :
                             syn_locs.append(pre_post)
                     else:
                         if D < (front.radius + o_front.radius) :
-                            print "radii too close [w/o syns]: D=%f (fr=%f, or=%f)" % (D,front.radius,o_front.radius)
+                            print_with_rank(self.num,"{0} too close [w/o syns]: D={1} (fr={2}, or={3})".format(front,D,front.radius,o_front.radius))
                             return False,[]
 
             else:
@@ -629,39 +638,74 @@ class Subvolume_Agent(object) :
                             # print "checking  ({0}, {1})".format(front,o_front)
                             D = dist3D_segment_to_segment (front.xyz,front.parent.xyz,o_front.parent.xyz,o_front.xyz)
                             if D < min_distance:
-                                print "self refused on segment distance (D=%{0} ({1}, {2}, min={3})+++++++++++++++++++".format(D,front,o_front,min_distance)
+                                print "self refused on segment distance (D={0} ({1}, {2}, min={3})+++++++++++++++++++".format(D,front,o_front,min_distance)
                                 # time.sleep(5)
                                 return False,[]
                             pass
         return ret, syn_locs        
 
+    # def _summarize_constellation_OLD(self,c) :
+    #     summarized_constellation = {}
+
+    #     # 2014-01-19
+    #     for key in c :
+    #         temp = [np.mean(c[key],axis=0)]
+    #         temp2 = []
+    #         for t in temp:
+    #             temp2.append((t,0))
+    #         summarized_constellation[key] = temp2
+            
+    #     #print_with_rank(self.num,"summarized: "+str(summarized_constellation))
+    #     return summarized_constellation
+    
     def _summarize_constellation_OLD(self,c) :
         summarized_constellation = {}
-
-        # 2014-01-19
+        # 2014-01-19, 2014-08-06
         for key in c :
-            temp = [np.mean(c[key],axis=0)]
-            temp2 = []
-            for t in temp:
-                temp2.append((t,0))
-            summarized_constellation[key] = temp2
-            
+            try:
+                temp = [np.mean(c[key],axis=0)]
+                temp2 = []
+                for t in temp:
+                    temp2.append((t,0))
+                #print "summary for key=",key,'=>',temp2
+                sum_front = Front(key,"",temp2[0][0],0,0,0)
+                summarized_constellation[key] = set([sum_front])
+            except Exception, e:
+                print "Subvolume:_summarize_constallation::EXCEPTION:", e
+                time.sleep(100000)
+                pass # let's try to ignore it...
         #print_with_rank(self.num,"summarized: "+str(summarized_constellation))
         return summarized_constellation
 
     def _summarize_constellation(self,c) :
         summarized_constellation = {}
-        # 2014-01-19, 2014-08-06
+        # 2014-01-19, 2014-08-06, 2015-06-02
         for key in c :
-            temp = [np.mean(c[key],axis=0)]
+            try:
+                temp = [np.mean(c[key],axis=0)]
+                #print("temp: {0}".format(temp))
+                if np.isnan(temp).any():
+                    print "flep"
+                    continue
+            except Warning:
+                print("Subvolume [flup]:_summarize_constallation::WARNING: {0} (on key: {1})".format(e,key))
+                time.sleep(100000)
+                continue
+                
             temp2 = []
             for t in temp:
                 temp2.append((t,0))
-            #print "summary for key=",key,'=>',temp2
+            #print "[flap] summary for key=",key,'=>',temp2
             sum_front = Front(key,"",temp2[0][0],0,0,0)
+            #print("sum_front: {0}".format(sum_front))
             summarized_constellation[key] = set([sum_front])
+
+            # except Exception, e:
+            #     print "Subvolume:_summarize_constallation::EXCEPTION:", e
+            #     time.sleep(100000)
+            #     pass # let's try to ignore it...
         #print_with_rank(self.num,"summarized: "+str(summarized_constellation))
-        return summarized_constellation    
+        return summarized_constellation      
         
     def _add_front(self,message) :
         """

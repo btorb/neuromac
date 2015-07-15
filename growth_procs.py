@@ -19,6 +19,24 @@ def unit_sample_on_sphere() :
     to = [x / denominator for x in xs]
     return np.array(to)
 
+def unit_sample_on_cone_around(vec,theta):
+    """
+    Sample
+    Adapted from: http://stackoverflow.com/questions/2659257/perturb-vector-by-some-angle
+    """
+    rand_vector = np.random.random(3)
+    cross_vector = normalize_length( np.cross( vec, rand_vector ),1)
+    s = np.random.rand()
+    r = np.random.rand()
+    h = np.cos( theta )
+    phi = 2 * np.pi * s
+    z = h + ( 1 - h ) * r
+    sinT = np.sqrt( 1 - z * z )
+    x = np.cos( phi ) * sinT
+    y = np.sin( phi ) * sinT
+    perturbed = rand_vector * x + cross_vector * y + vec * z
+    return normalize_length(perturbed,1.0)
+    
 def get_entity(entity_name,constellation) :
     """
     Search for all entities with a specific name.
@@ -75,6 +93,114 @@ def get_other_entity(front,constellation) :
                 entities = entities + constellation[key]
     return entities
 
+def get_eigen_entityOLD(front,constellation,ancestry_limit=25,common_ancestry_limit=10):
+    """
+    Search for all entity components of a structure. For instance, if \
+    you want to implement self-repulsion you have to use this method.
+
+    It is implemented in such way that direct siblings and parent \
+    structures are ignored. If this would not be the case, sel-repulsion \
+    would always direct away from the parent structure and result in a \
+    straight line.
+
+    Parameters
+    ----------
+    front : :py:class:`front.Front`
+    constellation : dict of list of np.array
+       A "point-only" constellation. That is, entries in this dict are \
+       lists of 3D np.array vectors
+
+    Returns
+    -------
+    entities : list of np.array
+       List contains 3D positions
+    """
+    entity_name = front.entity_name
+    print "front.entity_name: ", entity_name
+    entities = []
+    for key in constellation.keys() :
+        if key.startswith(entity_name):
+            entities = entities + constellation[key]
+            #continue # 2015-04-01
+    entities = map(tuple,entities)
+    #print "entities: ", entities
+
+    """Now prune the list of entities. Remove:
+    1. ancestors less than <ancestry_limit> micron away
+    2. fronts that have common ancestors less then <common_ancestry_limit> micron away (this happens at bifurcations)
+    
+    construct a list of positions, that will be removed from the entities list
+    """
+    len_before = len(entities)
+    # to_be_removed = []
+    # to_be_removed.append(front.xyz) # no cue from yourself
+    #print "self as tuple:", tuple(front.xyz)
+
+    # this is case #1
+    try:
+        entities.remove(tuple(front.xyz))
+    except Exception as error:
+        print "growth_procs.get_eigen_entity: caughtt unknown removal: ", str(error)
+        #time.sleep(5)
+
+    try:
+        path_L = 0
+        c_front = front
+        while path_L <= ancestry_limit:
+            parent = c_front.parent
+            if parent == None:
+                break
+            path_L = path_L + np.sqrt(np.sum((c_front.xyz-parent.xyz)**2))
+            #to_be_removed.append(parent.xyz)
+            c_front= parent
+            #print "trying to remove: ", tuple(parent.xyz)
+            entities.remove(tuple(parent.xyz))
+            #print "OK!"
+    except Exception as error:
+        print "parent.xyz: ", tuple(parent.xyz)
+        print "growth_procs.get_eigen_entity: caught unknown removal: ", str(error)
+        #time.sleep(10)
+
+    # this is case 2
+    """2015-03-16.
+    No easy/fast way without a tree structure available.
+    From the current front (front) go up to the first bifurcation point
+    (and keep the path length to there), then
+    From that point, go down until common_ancenstry limit is reached
+    """
+    ### TODO
+    # try:
+    #     traject_L = 0
+    #     bif_found = False
+    #     c_front = front
+    #     while traject_L < common_ancestry_limit:
+    #         # first, go up
+    #         if not bif_found:
+    #             parent = c_front.parent
+    # except Exception as error:
+    #     print "growth_procs.get_eigen_entity: caught unknown removal: ", str(error)
+    #     time.sleep(5)
+        
+    len_after = len(entities)
+    #print "len(entities), before=%i, after=%i" % (len_before,len_after)
+    entities = map(np.array,entities)
+    return entities
+
+def removearray(L,arr):
+    """
+    http://stackoverflow.com/questions/3157374/how-do-you-remove-a-numpy-array-from-a-list-of-numpy-arrays
+    """
+    ind = 0
+    size = len(L)
+    while ind != size and not np.array_equal(L[ind],arr):
+        ind += 1
+    if ind != size:
+        L.pop(ind)
+    else:
+        raise ValueError('TADA --- array not found in list.')
+        #pass
+    return L
+
 def get_eigen_entity(front,constellation,ancestry_limit=25,common_ancestry_limit=10):
     """
     Search for all entity components of a structure. For instance, if \
@@ -103,7 +229,8 @@ def get_eigen_entity(front,constellation,ancestry_limit=25,common_ancestry_limit
     for key in constellation.keys() :
         if key.startswith(entity_name):
             entities = entities + constellation[key]
-    entities = map(tuple,entities)
+            #continue # 2015-04-01
+    #entities = map(tuple,entities)
     #print "entities: ", entities
 
     """Now prune the list of entities. Remove:
@@ -117,25 +244,58 @@ def get_eigen_entity(front,constellation,ancestry_limit=25,common_ancestry_limit
     # to_be_removed.append(front.xyz) # no cue from yourself
     #print "self as tuple:", tuple(front.xyz)
 
+    # this is case #1
     try:
-        entities.remove(tuple(front.xyz))
+        #entities.remove(front.xyz)
+        entities = removearray(entities,front.xyz)
+    except ValueError as error:
+        print "growth_procs.get_eigen_entity: caughtt unknown removal: ", str(error)
+        time.sleep(5)
+
+    try:
         path_L = 0
         c_front = front
-        while path_L < ancestry_limit:
+        while path_L <= ancestry_limit:
             parent = c_front.parent
             if parent == None:
                 break
             path_L = path_L + np.sqrt(np.sum((c_front.xyz-parent.xyz)**2))
             #to_be_removed.append(parent.xyz)
             c_front= parent
-            entities.remove(tuple(parent.xyz))
-    except Exception as error:
+            #print "trying to remove: ", tuple(parent.xyz)
+            #entities.remove(parent.xyz)
+            entities = removearray(entities,parent.xyz)
+            #print "OK!"
+    except ValueError as error:
+        print "parent.xyz: ", parent.xyz
         print "growth_procs.get_eigen_entity: caught unknown removal: ", str(error)
-    
+        time.sleep(5)
+
+    # this is case 2
+    """2015-03-16.
+    No easy/fast way without a tree structure available.
+    From the current front (front) go up to the first bifurcation point
+    (and keep the path length to there), then
+    From that point, go down until common_ancenstry limit is reached
+    """
+    ### TODO
+    # try:
+    #     traject_L = 0
+    #     bif_found = False
+    #     c_front = front
+    #     while traject_L < common_ancestry_limit:
+    #         # first, go up
+    #         if not bif_found:
+    #             parent = c_front.parent
+    # except Exception as error:
+    #     print "growth_procs.get_eigen_entity: caught unknown removal: ", str(error)
+    #     time.sleep(5)
+        
     len_after = len(entities)
     #print "len(entities), before=%i, after=%i" % (len_before,len_after)
-    entities = map(np.array,entities)
+    entities = entities#map(np.array,entities)
     return entities
+
 
 def prepare_next_front(front,new_pos,radius_factor=None,\
                        set_radius=None,add_order=False,\
@@ -168,6 +328,7 @@ def prepare_next_front(front,new_pos,radius_factor=None,\
     #new_front = copy.deepcopy(front)
     new_front = copy.copy(front)
     new_front.parent = front
+    #new_front.parent.children.append(new_front)
     new_front.xyz = new_pos
     if not radius_factor == None:
         #print "front, radius_factor, front.radius:",radius_factor," * radius:",front.radius," = ", (front.radius*radius_factor)

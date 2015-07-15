@@ -6,7 +6,6 @@ def dist3D_segment_to_segment(p0,p1,p2,p3): # S1=(p0,p1), S2=(p2,3)
     dot = lambda u,v: np.dot(u,v)
     norm = lambda v: np.sqrt(dot(v,v))
     d = lambda u,v: norm(u-v)
-    
     u = p1-p0 # Vector   u = S1.P1 - S1.P0
     v = p3-p2 # Vector   v = S2.P1 - S2.P0
     w = p0-p2 # Vector   w = S1.P0 - S2.P0
@@ -49,7 +48,6 @@ def dist3D_segment_to_segment(p0,p1,p2,p3): # S1=(p0,p1), S2=(p2,3)
         else:
             sN = -d
             sD = a
-    
     elif (tN > tD):      # tc > 1  => the t=1 edge is visible
         tN = tD
         # recompute sc for this edge
@@ -60,8 +58,6 @@ def dist3D_segment_to_segment(p0,p1,p2,p3): # S1=(p0,p1), S2=(p2,3)
         else:
             sN = (-d +  b)
             sD = a
-
-
     # finally do the division to get sc and tc
     sc,tc = 0.0,0.0
     # sc = (abs(sN) < SMALL_NUM ? 0.0 : sN / sD)
@@ -69,15 +65,12 @@ def dist3D_segment_to_segment(p0,p1,p2,p3): # S1=(p0,p1), S2=(p2,3)
         sc = 0.0
     else:
         sc = sN / sD
-
     #tc = (abs(tN) < SMALL_NUM ? 0.0 : tN / tD)
     if np.abs(tN) < SMALL_NUM:
         tc = 0.0
     else:
         tc = tN/tD
-
     # get the difference of the two closest points
     dP = w + (sc * u) - (tc * v)  # =  S1(sc) - S2(tc)
-
     return norm(dP)   # return the closest distance
 

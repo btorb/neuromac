@@ -61,6 +61,7 @@ class Front(object) :
         self.swc_type = 7 # SWC-type field
         self.soma_pos =None
         self.parent = None
+        #self.children=[] # 2015-03-16, not sure if I should do this. effectively turning a Front in a tree-node
 
     def __str__(self):
         return "Front " + self.entity_name +": " + str(self.xyz)

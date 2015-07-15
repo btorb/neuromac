@@ -412,10 +412,6 @@ class Admin_Agent(object) :
         if len(fronts_to_be_retracted)>0:
             print_with_rank("_process_retraction_requests: {0}".format(fronts_to_be_retracted))
 
-        # removal_depth=0
-        # if self.parser.has_option("system","retraction_order"):
-        #     removal_depth = self.parser.getint("system","retraction_order")
-
         part_of_retraction = []
         conn = sqlite3.connect(self.db_file_name)
         cursor = conn.cursor()
@@ -423,6 +419,11 @@ class Admin_Agent(object) :
         for (f,removal_depth) in fronts_to_be_retracted:
             # find front in tree
             retract_node = self.non_swc_trees[f.entity_name].get_node_with_index(hash(f))
+            # In some cases, the retract_node has already been retracted (when retraction order >=2)
+            if retract_node == None:
+                continue
+            
+            print "retract_node: ", retract_node
             print_with_rank("found retract node: {0},xyz={1}".format(retract_node,retract_node.content['front'].xyz))
             #time.sleep(5)
 
@@ -430,7 +431,7 @@ class Admin_Agent(object) :
             To avoid pruning the whole tree, the depth of removal should be smaller than
             the order of the node that iniated the retraction
             """
-            order_of_node = self.non_swc_trees[f.entity_name].order_of_node(retract_node)+1# not an SWC tree, therefore, +1 (whole stem has order=0)
+            order_of_node = self.non_swc_trees[f.entity_name].order_of_node(retract_node)+1# 2015-03-23 was: +1 #  not an SWC tree, therefore, +1 (whole stem has order=0)
             path_to_root = self.non_swc_trees[f.entity_name].path_to_root(retract_node)
 
             #print("[before adjustment] removal_depth={0} (node order={1})".format(removal_depth,order_of_node))
@@ -441,7 +442,7 @@ class Admin_Agent(object) :
                 print("[sleep] removal_depth={0} (node order={1})".format(removal_depth,order_of_node))
 
             print_with_rank("retraction removal_depth={0} (node order={1}) [AFTER adjustment] ".format(removal_depth,order_of_node))
-            time.sleep(5)
+            #time.sleep(5)
             
             depth = 0
             visited = []
@@ -449,18 +450,24 @@ class Admin_Agent(object) :
             for node in path_to_root[:-1]:
                 #print "checking node: {0}".format(node.content['front'].xyz)
                 if self.non_swc_trees[f.entity_name].is_root(node):
+                    print "TESTING break because checked node IS root"
                     break
                 if len(node.children)==2: # this is a bifurcation point
                     depth = depth+1
                     if depth == removal_depth:
+                        print "break because removal depth is reached"
+                        if highest_node==None: # rare case when the first segment after a branch needs to be retracted
+                            highest_node=node
                         break
+                    
                 # now the bifurcation node is spared and highest_node is the node after the bifurcation.
                 # if you want to remove the complete bifurcation (the other subtree mounted
                 # at the sibling, place the next 3 lines abouve the previous if-statement
                 if not node==self.non_swc_trees[f.entity_name].get_root():
                     visited.append(node)
-                    highest_node = node                    
-            #print_with_rank("found highest node: {0} (with no. child.: {1})".format(highest_node,len(highest_node.children)))
+                    highest_node = node
+                    
+            print_with_rank("found highest node: {0} (with no. child.: {1})".format(highest_node,len(highest_node.children)))
 
             # get substree mounted at that identified node
             tree_to_rem = self.non_swc_trees[f.entity_name].get_sub_tree(highest_node)
@@ -473,7 +480,6 @@ class Admin_Agent(object) :
             for n_node in tree_to_rem.get_nodes():
                 n_front = n_node.content['front']
                 self.conn.execute("DELETE FROM swc_data where hash={0}".format(hash(n_front)))
-            
 
             # request the SVs to remvoe the same nodes/points
             message = ("Perform_retraction",tree_to_rem.get_nodes())
