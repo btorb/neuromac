@@ -12,7 +12,12 @@ import numpy as np
 import cPickle as pickle
 
 from front import Front
-import btmorph
+
+try:
+    import btmorph
+except ImportError as e:
+    print("Using btmorph_v2")
+    import btmorph2 as btmorph
 
 from multiprocessing import Process
 
@@ -508,8 +513,14 @@ class Admin_Agent(object) :
             # add two segment to comply with NeuroMorpho.org three-point soma
             r_p3d =root.content['p3d']
             r_xyz = r_p3d.xyz
-            pos1 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,type=1)#1 = swc type
-            pos2 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,type=1)#1 = swc type
+
+            # compatibility with btmorph_v2
+            try:
+                pos1 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,type=1)#1 = swc type
+                pos2 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,type=1)#1 = swc type
+            except TypeError:
+                pos1 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,segtype=1)#1 = swc type
+                pos2 = btmorph.P3D2(np.array([r_xyz[0],r_xyz[1]-r_p3d.radius,r_xyz[2]]),radius=r_p3d.radius,segtype=1)#1 = swc type                
             sub1 = btmorph.SNode2(2)
             sub1.content={'p3d':pos1}
             sub2 = btmorph.SNode2(3)

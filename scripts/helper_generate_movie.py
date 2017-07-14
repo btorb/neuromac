@@ -83,7 +83,12 @@ if __name__ == "__main__" :
             counter = counter +1
             if counter % 20 == 0:
                 print 'counter >',counter,'<'
-            swc_id,name,swc_type,x1,y1,z1,x2,y2,z2,radius,proc = row
+            # print("row: {}".format(row))
+            # back-compatibility
+            try:
+                swc_id,name,swc_type,x1,y1,z1,x2,y2,z2,radius,proc = row
+            except ValueError:
+                swc_id,name,swc_type,x1,y1,z1,x2,y2,z2,radius,something,proc = row
             plt.plot([x1,x2],[y1,y2],zs=[z1,z2],color=c_mapping[str(name)])#,marker=m_mapping[str(proc)])
             writer.grab_frame()
         # for ii in np.linspace(a_start,a_start+360,20):
