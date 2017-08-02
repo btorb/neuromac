@@ -42,7 +42,7 @@ def extend_front(front,seed,constellation,interstitial) :
         soma_dir = -1.0 * normalize_length(\
            direction_to(front,[front.soma_pos],what="nearest"),1.0) #-1: away from soma
 
-        new_dir = normalize_length(heading,1.0) + 1.0*soma_dir + 1.0*rnd_dir
+        new_dir = normalize_length(heading,1.0) + 10.0*soma_dir + 1.0*rnd_dir
         new_pos = front.xyz + normalize_length(new_dir,L_NORM)
         
         # rnd_dir = unit_sample_on_sphere()
